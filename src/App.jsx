@@ -309,14 +309,7 @@ function Overview({ members, counts }) {
       <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
         {members.length === 0 ? <EmptyNote text="No members registered yet. Add your first member from the Members tab." /> : (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {members.map(m => {
-                const t = tier(m.missed || 0);
-                const dotColor = t === 'Critical' ? C.brick : t === 'Mild' ? C.gold : STATUS_META[m.status || 'none'].color;
-                return <button key={m.id} title={`${m.name} — ${t || STATUS_META[m.status || 'none'].label}`} onClick={() => open(m.name, [m])}
-                  style={{ width: 14, height: 14, borderRadius: '50%', background: dotColor, flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer' }} />;
-              })}
-            </div>
+            <FlockList members={members} onOpen={open} />
             <Legend members={members} onOpen={open} />
           </>
         )}
@@ -391,6 +384,44 @@ function DrilldownModal({ title, list, onClose }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function FlockList({ members, onOpen }) {
+  const grouped = useMemo(() => {
+    const map = {};
+    members.forEach(m => { const k = m.bacenta || 'No bacenta'; (map[k] ||= []).push(m); });
+    Object.values(map).forEach(g => g.sort((a, b) => a.name.localeCompare(b.name)));
+    return map;
+  }, [members]);
+  const bacentaNames = Object.keys(grouped).sort();
+
+  return (
+    <div style={{ maxHeight: 340, overflowY: 'auto', paddingRight: 2 }}>
+      {bacentaNames.map(bacenta => (
+        <div key={bacenta} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 }}>
+            {bacenta} <span style={{ fontWeight: 400 }}>({grouped[bacenta].length})</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {grouped[bacenta].map(m => {
+              const t = tier(m.missed || 0);
+              const dotColor = t === 'Critical' ? C.brick : t === 'Mild' ? C.gold : STATUS_META[m.status || 'none'].color;
+              return (
+                <button key={m.id} onClick={() => onOpen(m.name, [m])} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                  borderBottom: `1px solid ${C.bg}`, padding: '7px 2px', cursor: 'pointer', textAlign: 'left', width: '100%',
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                  <div style={{ fontSize: 13, color: C.ink, flex: 1 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: C.sub }}>{t || STATUS_META[m.status || 'none'].label}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
