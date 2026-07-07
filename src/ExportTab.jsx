@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FileDown } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { makeBarChartDataUrl, makeLineChartDataUrl } from './pdfCharts';
 
 const C = { panel: '#FFFFFF', header: '#182B20', headerText: '#EFE8D6', bg: '#F1F3EC', accent: '#3E6B48', brick: '#AE4632', ink: '#2A2A24', sub: '#6B675A', border: '#DCE3D6' };
 
@@ -13,6 +14,7 @@ function tier(missed) {
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function daysAgoISO(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function fmtShort(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
 
 export default function ExportTab({ members, isAdmin, myBacenta }) {
   const bacentas = useMemo(() => Array.from(new Set(members.map(m => m.bacenta).filter(Boolean))).sort(), [members]);
@@ -72,8 +74,19 @@ export default function ExportTab({ members, isAdmin, myBacenta }) {
         theme: 'grid', headStyles: { fillColor: [24, 43, 32] }, styles: { fontSize: 9, halign: 'center' },
       });
 
+      // Bar chart: status breakdown
+      let y = doc.lastAutoTable.finalY + 8;
+      const barChart = makeBarChartDataUrl({
+        title: 'Member status breakdown',
+        labels: ['Active', 'Weak', 'Struggling', 'Lost'],
+        values: [counts.Active, counts.Weak, counts.Struggling, counts.Lost],
+        colors: ['#5F7A52', '#C6862B', '#3C5372', '#2A2A24'],
+      });
+      doc.addImage(barChart, 'PNG', 14, y, 182, 87);
+      y += 95;
+
       // Member list
-      let y = doc.lastAutoTable.finalY + 10;
+      if (y > 240) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Members', 14, y);
       autoTable(doc, {
         startY: y + 4,
@@ -97,17 +110,31 @@ export default function ExportTab({ members, isAdmin, myBacenta }) {
         theme: 'striped', headStyles: { fillColor: [24, 43, 32] }, styles: { fontSize: 8.5 },
       });
 
-      // Attendance summary within range
-      y = doc.lastAutoTable.finalY + 10;
-      if (y > 250) { doc.addPage(); y = 18; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Attendance by service date', 14, y);
+      // Attendance trend + summary within range
       const byDate = {};
       (att || []).forEach(a => {
         byDate[a.service_date] ||= { present: 0, total: 0 };
         byDate[a.service_date].total++;
         if (a.present) byDate[a.service_date].present++;
       });
-      const dateRows = Object.keys(byDate).sort().map(d => {
+      const sortedDates = Object.keys(byDate).sort();
+
+      y = doc.lastAutoTable.finalY + 10;
+      if (y > 190) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Attendance trend', 14, y);
+      y += 4;
+      const lineChart = makeLineChartDataUrl({
+        title: null,
+        labels: sortedDates.map(fmtShort),
+        values: sortedDates.map(d => Math.round((byDate[d].present / byDate[d].total) * 100)),
+        color: '#3E6B48',
+      });
+      doc.addImage(lineChart, 'PNG', 14, y, 182, 87);
+      y += 95;
+
+      if (y > 260) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Attendance by service date', 14, y);
+      const dateRows = sortedDates.map(d => {
         const { present, total } = byDate[d];
         return [fmtDate(d), present, total - present, `${Math.round((present / total) * 100)}%`];
       });
