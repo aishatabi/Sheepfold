@@ -343,6 +343,14 @@ function Overview({ members, counts }) {
 }
 
 function DrilldownModal({ title, list, onClose }) {
+  const grouped = useMemo(() => {
+    const map = {};
+    list.forEach(m => { const k = m.bacenta || 'No bacenta'; (map[k] ||= []).push(m); });
+    Object.values(map).forEach(g => g.sort((a, b) => a.name.localeCompare(b.name)));
+    return map;
+  }, [list]);
+  const bacentaNames = Object.keys(grouped).sort();
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: C.bg, zIndex: 50, overflowY: 'auto' }}>
       <div style={{ background: C.header, color: C.headerText, padding: '18px 14px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 1 }}>
@@ -352,27 +360,36 @@ function DrilldownModal({ title, list, onClose }) {
           <div style={{ fontSize: 12, opacity: 0.75 }}>{list.length} member{list.length !== 1 ? 's' : ''}</div>
         </div>
       </div>
-      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 40 }}>
-        {list.map(m => {
-          const t = tier(m.missed || 0);
-          const st = STATUS_META[m.status || 'none'];
-          return (
-            <div key={m.id} style={{ border: `1px solid ${C.border}`, background: C.panel, borderRadius: 12, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{m.name}</div>
-                  <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{m.bacenta ? `${m.bacenta} · ` : ''}{m.bl ? `BL: ${m.bl}` : 'No BL'}</div>
-                  {m.phone && <div style={{ fontSize: 12, color: C.sub, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}><Phone size={11} />{m.phone}</div>}
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: st.soft, color: st.color }}>{st.label}</span>
-                  {t && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: t === 'Critical' ? C.brickSoft : C.goldSoft, color: t === 'Critical' ? C.brick : C.gold }}>{t}</span>}
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: C.sub, marginTop: 6 }}>Missed: <b style={{ color: C.ink }}>{m.missed || 0}</b>{m.lastVisit && ` · Last visit ${fmt(m.lastVisit)}`}</div>
+      <div style={{ padding: 14, paddingBottom: 40 }}>
+        {bacentaNames.map(bacenta => (
+          <div key={bacenta} style={{ marginBottom: 18 }}>
+            <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 13, color: C.accent, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              {bacenta} <span style={{ color: C.sub, fontWeight: 400, textTransform: 'none' }}>({grouped[bacenta].length})</span>
             </div>
-          );
-        })}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {grouped[bacenta].map(m => {
+                const t = tier(m.missed || 0);
+                const st = STATUS_META[m.status || 'none'];
+                return (
+                  <div key={m.id} style={{ border: `1px solid ${C.border}`, background: C.panel, borderRadius: 12, padding: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 15 }}>{m.name}</div>
+                        <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{m.bl ? `BL: ${m.bl}` : 'No BL'}</div>
+                        {m.phone && <div style={{ fontSize: 12, color: C.sub, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}><Phone size={11} />{m.phone}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: st.soft, color: st.color }}>{st.label}</span>
+                        {t && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: t === 'Critical' ? C.brickSoft : C.goldSoft, color: t === 'Critical' ? C.brick : C.gold }}>{t}</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: C.sub, marginTop: 6 }}>Missed: <b style={{ color: C.ink }}>{m.missed || 0}</b>{m.lastVisit && ` · Last visit ${fmt(m.lastVisit)}`}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
