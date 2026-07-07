@@ -177,7 +177,7 @@ function MainApp({ session, myName, role, myBacenta }) {
     fetchAll();
   }
   async function logVisit(memberId, entry) {
-    await supabase.from('visitations').insert({ member_id: memberId, date: entry.date, type: entry.type, notes: entry.notes, logged_by: myName });
+    await supabase.from('visitations').insert({ member_id: memberId, date: entry.date, type: entry.type, notes: entry.notes, logged_by: entry.ledBy, others_present: entry.others || null });
     const current = members.find(m => m.id === memberId);
     await supabase.from('members').update(memberToDb({ ...current, lastVisit: entry.date })).eq('id', memberId);
     setLogFor(null);
@@ -236,7 +236,7 @@ function MainApp({ session, myName, role, myBacenta }) {
       {showAdd && <MemberForm title="Add member" onCancel={() => setShowAdd(false)} onSave={addMember} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
       {showImport && <CsvImport onClose={() => setShowImport(false)} onImported={fetchAll} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
       {editMember && <MemberForm title="Edit member" initial={editMember} onCancel={() => setEditMember(null)} onSave={(d) => { updateMember(editMember.id, d); setEditMember(null); }} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
-      {logFor && <LogVisitForm member={members.find(m => m.id === logFor)} onCancel={() => setLogFor(null)} onSave={(e) => logVisit(logFor, e)} />}
+      {logFor && <LogVisitForm member={members.find(m => m.id === logFor)} onCancel={() => setLogFor(null)} onSave={(e) => logVisit(logFor, e)} myName={myName} />}
       {confirmDelete && <ConfirmModal text={`Remove ${confirmDelete.name} from the flock register? This also clears their visitation history.`} onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteMember(confirmDelete.id)} />}
     </div>
   );
@@ -677,9 +677,11 @@ function MemberForm({ title, initial, onCancel, onSave, isAdmin, lockedBacenta }
   );
 }
 
-function LogVisitForm({ member, onCancel, onSave }) {
+function LogVisitForm({ member, onCancel, onSave, myName }) {
   const [date, setDate] = useState(todayISO());
   const [type, setType] = useState('Visitation');
+  const [ledBy, setLedBy] = useState(myName || '');
+  const [others, setOthers] = useState('');
   const [notes, setNotes] = useState('');
   if (!member) return null;
   return (
@@ -690,10 +692,12 @@ function LogVisitForm({ member, onCancel, onSave }) {
           <option>Visitation</option><option>Telepastor call</option><option>Co-visit with Pastor Kwaku</option>
         </select>
       </Field>
+      <Field label="Visitation led by"><input value={ledBy} onChange={e => setLedBy(e.target.value)} style={inputStyle} placeholder="Name" /></Field>
+      <Field label="Who else came on the visit"><input value={others} onChange={e => setOthers(e.target.value)} style={inputStyle} placeholder="Optional — other names, comma separated" /></Field>
       <Field label="Notes"><textarea value={notes} onChange={e => setNotes(e.target.value)} style={{ ...inputStyle, width: '100%', minHeight: 70, resize: 'vertical' }} placeholder="Optional" /></Field>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button onClick={onCancel} style={{ ...ghostBtn, flex: 1 }}>Cancel</button>
-        <button onClick={() => onSave({ date, type, notes })} style={{ ...primaryBtn, flex: 1 }}>Save visit</button>
+        <button disabled={!ledBy.trim()} onClick={() => onSave({ date, type, ledBy: ledBy.trim(), others, notes })} style={{ ...primaryBtn, flex: 1, opacity: ledBy.trim() ? 1 : 0.5 }}>Save visit</button>
       </div>
     </Modal>
   );

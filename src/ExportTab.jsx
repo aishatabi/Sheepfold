@@ -102,12 +102,12 @@ export default function ExportTab({ members, isAdmin, myBacenta }) {
       if (y > 260) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Visitation log', 14, y);
       const nameById = Object.fromEntries(scopedMembers.map(m => [m.id, m.name]));
-      const visitRows = (visits || []).map(v => [fmtDate(v.date), nameById[v.member_id] || '—', v.type || '—', v.logged_by || '—', v.notes || '']);
+      const visitRows = (visits || []).map(v => [fmtDate(v.date), nameById[v.member_id] || '—', v.type || '—', v.logged_by || '—', v.others_present || '—', v.notes || '']);
       autoTable(doc, {
         startY: y + 4,
-        head: [['Date', 'Member', 'Type', 'Logged by', 'Notes']],
-        body: visitRows.length ? visitRows : [['—', 'No visits logged in this date range', '', '', '']],
-        theme: 'striped', headStyles: { fillColor: [24, 43, 32] }, styles: { fontSize: 8.5 },
+        head: [['Date', 'Member', 'Type', 'Led by', 'Others present', 'Notes']],
+        body: visitRows.length ? visitRows : [['—', 'No visits logged in this date range', '', '', '', '']],
+        theme: 'striped', headStyles: { fillColor: [24, 43, 32] }, styles: { fontSize: 8 },
       });
 
       // Attendance trend + summary within range
