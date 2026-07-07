@@ -25,8 +25,6 @@ export default function Login() {
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
           <img src={LOGO_GREEN} alt="Sheepfold" style={{ width: 64, height: 64, objectFit: 'contain', margin: '0 auto 8px' }} />
           <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 26, color: C.ink }}>Sheepfold</div>
-          <div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>First Love Beds — leader sign in</div>
-          <div style={{ fontSize: 12, color: C.sub, marginTop: 6 }}>Access is by invitation only.</div>
         </div>
 
         <form onSubmit={signIn} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 12, padding: 18 }}>
