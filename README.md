@@ -43,22 +43,60 @@ Open your Vercel URL, enter your email, and check your inbox for the sign-in lin
 First time in, it'll ask your name — that's how you show up as a Bacenta Leader.
 Every BL who signs in this way sees and edits the same live member list.
 
+## You're the administrator, BLs only see their own bacenta
+
+After the initial setup, run one more script: **`migration-add-roles.sql`** in
+Supabase's SQL Editor (same way as the schema — paste it all, Run). This adds:
+
+- **Administrator** role — sees and edits everything, exactly like now
+- **Bacenta Leader** role — only sees, adds, and edits members (and their
+  attendance/visits) within their own bacenta
+
+Then, two things:
+
+1. **Make yourself admin.** At the bottom of `migration-add-roles.sql` there's
+   one commented-out line — copy it out, replace the email with the one you
+   sign into Sheepfold with, and run just that line by itself.
+2. **Assign each BL's bacenta.** Sign into the app → a new **Team** tab appears
+   in the bottom bar (only visible to admins). For each leader listed there,
+   set their role (Administrator / Bacenta Leader) and type their bacenta name
+   — it'll suggest names already used in Members.
+
+Until a BL's bacenta is set, they'll see an empty app with a note asking them
+to contact you. Once you set it, their data appears immediately.
+
 ## Adding a Bacenta Leader (you're the administrator)
 
 Nobody can create their own account — sign-ups are switched off. You add every
-leader yourself:
+leader yourself, and you set their password:
 
 1. Supabase dashboard → **Authentication → Users** → **Add user**.
 2. Enter their email address.
-3. Turn **Auto Confirm User** ON, then create.
-4. That's it — no password needed. Tell them to open the app, enter that exact
-   email, and tap "Send me a sign-in link." They'll get a magic-link email and
-   be straight in. First time in, it'll ask their name once.
+3. Enter a password for them (anything — e.g. `Sheepfold2026`). Turn
+   **Auto Confirm User** ON, then create.
+4. Tell them their email and password (WhatsApp, text, in person — whatever's
+   easiest). They open the app, enter both, and tap **Sign in**. First time
+   in, it'll ask their name once.
 
-If someone who isn't added tries to sign in, they'll see "we couldn't find an
-account for that email" — they're locked out until you add them.
+If someone gets their email or password wrong, they'll see "incorrect email
+or password" — they're locked out until you help them.
 
-To remove someone's access later: **Authentication → Users** → find them → **Delete user**.
+To reset someone's password: **Authentication → Users** → find them → the
+**⋯** menu → **Reset password**, or delete and re-add them with a new one.
+
+To remove someone's access entirely: **Authentication → Users** → find them → **Delete user**.
+
+## Exporting PDF reports
+
+A new **Export** tab lets anyone download a PDF report for a chosen date range:
+
+- **You (admin):** pick "Whole church" or any single bacenta
+- **BLs:** always export their own bacenta only
+
+Each report includes: a status summary (Critical/Mild/Lost/Weak/Struggling/Active
+counts), the full member list, every visit logged in that date range, and
+attendance for each service date in range. No setup needed — it just works
+once you've redeployed with these files.
 
 ## Day-to-day use
 
