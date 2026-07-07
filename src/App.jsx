@@ -305,15 +305,6 @@ function Overview({ members, counts }) {
         <StatCard label="Total members" value={counts.total} color={C.sage} soft={C.sageSoft} icon={<CheckCircle2 size={16} />}
           onClick={() => open('All members', members)} />
       </div>
-      <SectionTitle>The flock</SectionTitle>
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-        {members.length === 0 ? <EmptyNote text="No members registered yet. Add your first member from the Members tab." /> : (
-          <>
-            <FlockList members={members} onOpen={open} />
-            <Legend members={members} onOpen={open} />
-          </>
-        )}
-      </div>
       {counts.critical > 0 && (
         <>
           <SectionTitle>Needs urgent visitation</SectionTitle>
