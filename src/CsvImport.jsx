@@ -57,7 +57,7 @@ function rowsToMembers(rows) {
   return { members, error: null };
 }
 
-export default function CsvImport({ onClose, onImported }) {
+export default function CsvImport({ onClose, onImported, isAdmin, lockedBacenta }) {
   const [raw, setRaw] = useState('');
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
@@ -77,11 +77,13 @@ export default function CsvImport({ onClose, onImported }) {
     const rows = parseCsv(text);
     const { members, error } = rowsToMembers(rows);
     if (error) { setError(error); setPreview(null); return; }
-    setPreview(members);
+    const scoped = isAdmin ? members : members.map(m => ({ ...m, bacenta: lockedBacenta || null }));
+    setPreview(scoped);
   }
 
   async function runImport() {
     if (!preview || preview.length === 0) return;
+    if (!isAdmin && !lockedBacenta) { setError("You haven't been assigned a bacenta yet — ask your administrator."); return; }
     setImporting(true);
     const { error } = await supabase.from('members').insert(preview);
     setImporting(false);
@@ -107,6 +109,7 @@ export default function CsvImport({ onClose, onImported }) {
           <>
             <div style={{ fontSize: 13, color: C.sub, marginBottom: 10 }}>
               Columns: <b>name</b> (required), bacenta, bl, phone, missed, status (none / Lost / Weak / Struggling).
+              {!isAdmin && <><br />You can only add members to <b>{lockedBacenta || 'your bacenta'}</b> — any bacenta column in your file will be ignored.</>}
               Upload a CSV or paste it below.
             </div>
 

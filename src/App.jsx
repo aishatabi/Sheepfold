@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Home, Users, ClipboardCheck, Plus, X, Phone, Search, AlertTriangle, CheckCircle2, CalendarDays, Pencil, Trash2, LogOut, CheckSquare, ArrowLeft } from 'lucide-react';
+import { Home, Users, ClipboardCheck, Plus, X, Phone, Search, AlertTriangle, CheckCircle2, CalendarDays, Pencil, Trash2, LogOut, CheckSquare, ArrowLeft, Shield, FileDown } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
 import CsvImport from './CsvImport';
 import AttendanceTab from './AttendanceTab';
+import ExportTab from './ExportTab';
 import { groupByMember, effectiveMissed } from './attendance';
 import { LOGO_CREAM } from './logo';
 
@@ -37,7 +38,7 @@ const memberToDb = (m) => ({ name: m.name, bacenta: m.bacenta, bl: m.bl, phone: 
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = checking, null = signed out
-  const [profileName, setProfileName] = useState(null);
+  const [profile, setProfile] = useState(null); // null = loading, undefined-name = needs name prompt
   const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
@@ -48,28 +49,28 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
-    supabase.from('profiles').select('name').eq('id', session.user.id).maybeSingle()
-      .then(({ data }) => setProfileName(data?.name || ''));
+    supabase.from('profiles').select('name, role, bacenta').eq('id', session.user.id).maybeSingle()
+      .then(({ data }) => setProfile(data || { name: '' }));
   }, [session]);
 
   if (session === undefined) return <Splash text="Loading…" />;
   if (!session) return <Login />;
 
-  if (profileName === null) return <Splash text="Loading…" />;
-  if (profileName === '') {
+  if (profile === null) return <Splash text="Loading…" />;
+  if (!profile.name) {
     return (
       <NamePrompt
         value={nameDraft} onChange={setNameDraft}
         onSave={async () => {
           if (!nameDraft.trim()) return;
-          await supabase.from('profiles').upsert({ id: session.user.id, name: nameDraft.trim() });
-          setProfileName(nameDraft.trim());
+          await supabase.from('profiles').upsert({ id: session.user.id, name: nameDraft.trim(), email: session.user.email });
+          setProfile({ ...profile, name: nameDraft.trim() });
         }}
       />
     );
   }
 
-  return <Dashboard session={session} myName={profileName} />;
+  return <MainApp session={session} myName={profile.name} role={profile.role || 'bl'} myBacenta={profile.bacenta || null} />;
 }
 
 function Splash({ text }) {
@@ -89,7 +90,8 @@ function NamePrompt({ value, onChange, onSave }) {
   );
 }
 
-function Dashboard({ session, myName }) {
+function MainApp({ session, myName, role, myBacenta }) {
+  const isAdmin = role === 'admin';
   const [tab, setTab] = useState('dashboard');
   const [members, setMembers] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -158,13 +160,15 @@ function Dashboard({ session, myName }) {
   }, [membersWithMissed, settings]);
 
   async function addMember(data) {
-    await supabase.from('members').insert(memberToDb({ missed: 0, status: 'none', lastVisit: null, ...data }));
+    const bacenta = isAdmin ? data.bacenta : myBacenta;
+    await supabase.from('members').insert(memberToDb({ missed: 0, status: 'none', lastVisit: null, ...data, bacenta }));
     setShowAdd(false);
     fetchAll();
   }
   async function updateMember(id, patch) {
     const current = members.find(m => m.id === id);
-    await supabase.from('members').update(memberToDb({ ...current, ...patch })).eq('id', id);
+    const bacenta = isAdmin ? patch.bacenta : current.bacenta;
+    await supabase.from('members').update(memberToDb({ ...current, ...patch, bacenta })).eq('id', id);
     fetchAll();
   }
   async function deleteMember(id) {
@@ -195,11 +199,19 @@ function Dashboard({ session, myName }) {
           <img src={LOGO_CREAM} alt="Sheepfold" style={{ width: 38, height: 38, objectFit: 'contain' }} />
           <div>
             <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 24 }}>Sheepfold</div>
-            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 2 }}>Signed in as {myName}</div>
+            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 2 }}>
+              Signed in as {myName}{isAdmin ? ' · Administrator' : myBacenta ? ` · ${myBacenta}` : ' · not yet assigned a bacenta'}
+            </div>
           </div>
         </div>
         <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', color: C.headerText, opacity: 0.8, cursor: 'pointer' }}><LogOut size={18} /></button>
       </div>
+
+      {!isAdmin && !myBacenta && (
+        <div style={{ margin: 14, background: C.amberSoft, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: 12, fontSize: 13, color: C.ink }}>
+          Your administrator hasn't assigned you to a bacenta yet, so there's nothing to show. Ask them to set it in the Team screen.
+        </div>
+      )}
 
       <div style={{ padding: '14px 14px 0' }}>
         <VisitationWeekBar settings={settings} onChange={saveSettings} progress={counts.visitedInWindow} total={counts.total} />
@@ -211,17 +223,19 @@ function Dashboard({ session, myName }) {
         <MembersTab
           members={filtered} allBLs={bls} allBacentas={bacentas} search={search} setSearch={setSearch}
           filterBL={filterBL} setFilterBL={setFilterBL} filterBacenta={filterBacenta} setFilterBacenta={setFilterBacenta}
-          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus} isAdmin={isAdmin}
           onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} onEdit={setEditMember} onLog={setLogFor} onDelete={setConfirmDelete}
         />
       )}
       {tab === 'bl' && <BLTab members={membersWithMissed} settings={settings} />}
+      {tab === 'export' && <ExportTab members={membersWithMissed} isAdmin={isAdmin} myBacenta={myBacenta} />}
+      {tab === 'team' && isAdmin && <TeamTab />}
 
-      <TabBar tab={tab} setTab={setTab} />
+      <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} />
 
-      {showAdd && <MemberForm title="Add member" onCancel={() => setShowAdd(false)} onSave={addMember} />}
-      {showImport && <CsvImport onClose={() => setShowImport(false)} onImported={fetchAll} />}
-      {editMember && <MemberForm title="Edit member" initial={editMember} onCancel={() => setEditMember(null)} onSave={(d) => { updateMember(editMember.id, d); setEditMember(null); }} />}
+      {showAdd && <MemberForm title="Add member" onCancel={() => setShowAdd(false)} onSave={addMember} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
+      {showImport && <CsvImport onClose={() => setShowImport(false)} onImported={fetchAll} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
+      {editMember && <MemberForm title="Edit member" initial={editMember} onCancel={() => setEditMember(null)} onSave={(d) => { updateMember(editMember.id, d); setEditMember(null); }} isAdmin={isAdmin} lockedBacenta={myBacenta} />}
       {logFor && <LogVisitForm member={members.find(m => m.id === logFor)} onCancel={() => setLogFor(null)} onSave={(e) => logVisit(logFor, e)} />}
       {confirmDelete && <ConfirmModal text={`Remove ${confirmDelete.name} from the flock register? This also clears their visitation history.`} onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteMember(confirmDelete.id)} />}
     </div>
@@ -498,21 +512,96 @@ function BLTab({ members, settings }) {
   );
 }
 
-function TabBar({ tab, setTab }) {
-  const items = [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'attendance', label: 'Attendance', icon: CheckSquare }, { id: 'members', label: 'Members', icon: Users }, { id: 'bl', label: 'BLs', icon: ClipboardCheck }];
+function TabBar({ tab, setTab, isAdmin }) {
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'attendance', label: 'Attendance', icon: CheckSquare },
+    { id: 'members', label: 'Members', icon: Users },
+    { id: 'bl', label: 'BLs', icon: ClipboardCheck },
+    { id: 'export', label: 'Export', icon: FileDown },
+    ...(isAdmin ? [{ id: 'team', label: 'Team', icon: Shield }] : []),
+  ];
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.panel, borderTop: `1px solid ${C.border}`, display: 'flex', padding: '8px 6px calc(8px + env(safe-area-inset-bottom))' }}>
+    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.panel, borderTop: `1px solid ${C.border}`, display: 'flex', overflowX: 'auto', padding: '8px 6px calc(8px + env(safe-area-inset-bottom))' }}>
       {items.map(it => {
         const Icon = it.icon; const active = tab === it.id;
-        return <button key={it.id} onClick={() => setTab(it.id)} style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: active ? C.accent : C.sub, fontSize: 11, fontWeight: 600, padding: '4px 0', cursor: 'pointer' }}><Icon size={19} />{it.label}</button>;
+        return <button key={it.id} onClick={() => setTab(it.id)} style={{ flex: '1 0 62px', minWidth: 62, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: active ? C.accent : C.sub, fontSize: 11, fontWeight: 600, padding: '4px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }}><Icon size={19} />{it.label}</button>;
       })}
     </div>
   );
 }
 
-function MemberForm({ title, initial, onCancel, onSave }) {
+function TeamTab() {
+  const [profiles, setProfiles] = useState([]);
+  const [bacentaOptions, setBacentaOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState(null);
+
+  async function fetchAll() {
+    const [{ data: p }, { data: m }] = await Promise.all([
+      supabase.from('profiles').select('*').order('name'),
+      supabase.from('members').select('bacenta'),
+    ]);
+    setProfiles(p || []);
+    setBacentaOptions(Array.from(new Set((m || []).map(r => r.bacenta).filter(Boolean))).sort());
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchAll(); }, []);
+
+  async function saveProfile(id, patch) {
+    setSavingId(id);
+    await supabase.from('profiles').update(patch).eq('id', id);
+    await fetchAll();
+    setSavingId(null);
+  }
+
+  if (loading) return <div style={{ padding: '4px 14px 14px' }}><EmptyNote text="Loading team…" /></div>;
+
+  return (
+    <div style={{ padding: '4px 14px 14px' }}>
+      <SectionTitle>Team access</SectionTitle>
+      <div style={{ fontSize: 13, color: C.sub, marginBottom: 12 }}>
+        Set each leader's bacenta so they only see their own members. Admins see everything.
+      </div>
+      <datalist id="bacenta-options">
+        {bacentaOptions.map(b => <option key={b} value={b} />)}
+      </datalist>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {profiles.map(p => (
+          <div key={p.id} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name || '(no name yet)'}</div>
+            {p.email && <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{p.email}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <select
+                value={p.role || 'bl'}
+                onChange={e => saveProfile(p.id, { role: e.target.value })}
+                style={{ ...inputStyle, flex: 1 }}
+              >
+                <option value="bl">Bacenta Leader</option>
+                <option value="admin">Administrator</option>
+              </select>
+              <input
+                list="bacenta-options"
+                value={p.bacenta || ''}
+                onChange={e => setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, bacenta: e.target.value } : x))}
+                onBlur={e => saveProfile(p.id, { bacenta: e.target.value || null })}
+                placeholder={p.role === 'admin' ? 'Not needed for admins' : 'e.g. Grace Bacenta'}
+                disabled={p.role === 'admin'}
+                style={{ ...inputStyle, flex: 1, opacity: p.role === 'admin' ? 0.5 : 1 }}
+              />
+            </div>
+            {savingId === p.id && <div style={{ fontSize: 11, color: C.accent, marginTop: 6 }}>Saving…</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MemberForm({ title, initial, onCancel, onSave, isAdmin, lockedBacenta }) {
   const [name, setName] = useState(initial?.name || '');
-  const [bacenta, setBacenta] = useState(initial?.bacenta || '');
+  const [bacenta, setBacenta] = useState(initial?.bacenta || (isAdmin ? '' : (lockedBacenta || '')));
   const [bl, setBl] = useState(initial?.bl || '');
   const [phone, setPhone] = useState(initial?.phone || '');
   const [missed, setMissed] = useState(initial?.missed ?? 0);
@@ -521,7 +610,13 @@ function MemberForm({ title, initial, onCancel, onSave }) {
   return (
     <Modal onClose={onCancel} title={title}>
       <Field label="Name"><input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="Full name" /></Field>
-      <Field label="Bacenta (Sonta)"><input value={bacenta} onChange={e => setBacenta(e.target.value)} style={inputStyle} placeholder="e.g. Grace Bacenta" /></Field>
+      <Field label="Bacenta (Sonta)">
+        {isAdmin ? (
+          <input value={bacenta} onChange={e => setBacenta(e.target.value)} style={inputStyle} placeholder="e.g. Grace Bacenta" />
+        ) : (
+          <div style={{ ...inputStyle, background: C.bg, color: C.sub }}>{lockedBacenta || 'Not assigned — ask your administrator'}</div>
+        )}
+      </Field>
       <Field label="Bacenta Leader"><input value={bl} onChange={e => setBl(e.target.value)} style={inputStyle} placeholder="BL name" /></Field>
       <Field label="Phone"><input value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} placeholder="Optional" /></Field>
       <div style={{ display: 'flex', gap: 10 }}>
@@ -537,7 +632,7 @@ function MemberForm({ title, initial, onCancel, onSave }) {
       </label>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button onClick={onCancel} style={{ ...ghostBtn, flex: 1 }}>Cancel</button>
-        <button disabled={!name.trim()} onClick={() => onSave({ name: name.trim(), bacenta, bl, phone, missed, status, complex })} style={{ ...primaryBtn, flex: 1, opacity: name.trim() ? 1 : 0.5 }}>Save</button>
+        <button disabled={!name.trim()} onClick={() => onSave({ name: name.trim(), bacenta: isAdmin ? bacenta : lockedBacenta, bl, phone, missed, status, complex })} style={{ ...primaryBtn, flex: 1, opacity: name.trim() ? 1 : 0.5 }}>Save</button>
       </div>
     </Modal>
   );
